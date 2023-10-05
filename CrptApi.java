@@ -64,14 +64,10 @@ public class CrptApi {
             try {
                 httpClient.execute(requests.poll());
                 lastSubmit = System.currentTimeMillis();
-                requestLimit.incrementAndGet();
+                requestLimit.decrementAndGet();
             } catch (IOException e) {
-                if (retryCount < MAX_RETRY_COUNT) {
-                    retryCount++;
-                    sendOne();
-                } else {
-                    e.printStackTrace(System.out);
-                }
+                retryCount++;
+                sendOne();
             }
         }
     }
