@@ -2,10 +2,11 @@ package org.example.concurrency.queue.HonestSign;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.springframework.util.CollectionUtils;
 
@@ -22,10 +23,10 @@ public class CrptApi {
     public static final String TYPE = "application/json";
     private static final int MAX_RETRY_COUNT = 3;
     private final Long DELAY;
-    private final HttpClient httpClient;
+    private final CloseableHttpClient httpClient;
     private AtomicInteger requestLimit;
     private Queue<HttpPost> requests = new ConcurrentLinkedDeque<>();
-    private Long lastSubmit = Long.MAX_VALUE;
+    private Long lastSubmit = 0L;
     int retryCount = 0;
 
     public CrptApi(Integer requestLimit, TimeUnit timeUnit, Long timeUnitAmount) {
@@ -42,7 +43,7 @@ public class CrptApi {
         HttpPost request = new HttpPost(Properties.loadFromProperties());
         request.setHeader(CONTENT_TYPE, TYPE);
         try {
-            request.setEntity(new StringEntity(JacksonObjectMapperHolder.INSTANCE.getObjectMapper().writeValueAsString(document)));
+            request.setEntity(new StringEntity(new JacksonObjectMapperHolder().getObjectMapper().writeValueAsString(document)));
             requests.add(request);
         } catch (JsonProcessingException | UnsupportedEncodingException e) {
             // for instance log and rethrow
@@ -60,9 +61,12 @@ public class CrptApi {
     }
 
     private synchronized void sendOne() {
-        if (System.currentTimeMillis() - lastSubmit > DELAY && !CollectionUtils.isEmpty(requests)) {
-            try {
-                httpClient.execute(requests.peek());
+        if ( System.currentTimeMillis() - lastSubmit > DELAY && !CollectionUtils.isEmpty(requests)) {
+            try (CloseableHttpResponse response = httpClient.execute(requests.peek())){
+//                some logic here
+//                StatusLine statusLine = response.getStatusLine();
+//                int statusCode = statusLine.getStatusCode();
+//                String string = EntityUtils.toString(response.getEntity());
                 lastSubmit = System.currentTimeMillis();
                 requestLimit.decrementAndGet();
                 requests.poll();
