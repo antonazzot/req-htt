@@ -26,6 +26,7 @@ public class CrptApi {
     private AtomicInteger requestLimit;
     private Queue<HttpPost> requests = new ConcurrentLinkedDeque<>();
     private Long lastSubmit = Long.MAX_VALUE;
+    int retryCount = 0;
 
     public CrptApi(Integer requestLimit, TimeUnit timeUnit, Long timeUnitAmount) {
         this.requestLimit = requestLimit > 0 ? new AtomicInteger(requestLimit) : new AtomicInteger(0);
@@ -60,14 +61,21 @@ public class CrptApi {
 
     private synchronized void sendOne() {
         if (System.currentTimeMillis() - lastSubmit > DELAY && !CollectionUtils.isEmpty(requests)) {
-            int retryCount = 0;
             try {
-                httpClient.execute(requests.poll());
+                httpClient.execute(requests.peek());
                 lastSubmit = System.currentTimeMillis();
                 requestLimit.decrementAndGet();
+                requests.poll();
             } catch (IOException e) {
                 retryCount++;
-                sendOne();
+                if (retryCount < MAX_RETRY_COUNT) {
+                    sendOne();
+                    //log
+                } else {
+                    //log
+                    requests.poll();
+                    retryCount = 0;
+                }
             }
         }
     }
@@ -77,15 +85,13 @@ public class CrptApi {
     }
 
 
-
     public class Properties {
         private static final String API_URL = "https://ismp.crpt.ru/api/v3/lk/documents/create";
 
-        public static  String loadFromProperties(){
+        public static String loadFromProperties() {
             return API_URL;
         }
     }
-
 
 
     public final class JacksonObjectMapperHolder {
@@ -94,14 +100,14 @@ public class CrptApi {
 
         private static final Object MUTEX = new Object();
 
-        public  JacksonObjectMapperHolder getInstance() {
+        public JacksonObjectMapperHolder getInstance() {
             JacksonObjectMapperHolder instance = INSTANCE;
 
-            if(instance == null) {
-                synchronized(MUTEX) {
+            if (instance == null) {
+                synchronized (MUTEX) {
                     instance = INSTANCE;
 
-                    if(instance == null) {
+                    if (instance == null) {
                         INSTANCE = instance = new JacksonObjectMapperHolder();
                     }
                 }
@@ -112,11 +118,11 @@ public class CrptApi {
 
         private final ObjectMapper objectMapper = new ObjectMapper();
 
-        private  JacksonObjectMapperHolder() {
+        private JacksonObjectMapperHolder() {
             super();
         }
 
-        public  ObjectMapper getObjectMapper() {
+        public ObjectMapper getObjectMapper() {
             return objectMapper;
         }
 
@@ -234,7 +240,6 @@ public class CrptApi {
             this.uitu_code = uitu_code;
         }
     }
-
 
 
 }
